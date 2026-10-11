@@ -1,0 +1,724 @@
+@model doping_hafiza.Models.BroadcastDashboardViewModel
+@{
+    ViewData["Title"] = "Canlı Yayın Operasyon Paneli";
+}
+
+<div class="container-fluid py-3">
+    <!-- Header -->
+    <div class="d-flex flex-wrap justify-content-between align-items-center mb-4 pb-2 border-bottom">
+        <div>
+            <h2 class="h3 fw-bold mb-1 text-dark">
+                <i class="bi bi-broadcast text-danger me-2"></i>Canlı Yayın Operasyon Paneli
+            </h2>
+            <p class="text-muted small mb-0">
+                Haftalık Yayın Takvimi Takip ve Operasyonel Aksiyon Merkezi &bull; 
+                <span class="fw-semibold">@Model.WeekStartDate.ToString("dd MMMM") - @Model.WeekEndDate.ToString("dd MMMM yyyy")</span>
+            </p>
+        </div>
+        <div class="d-flex gap-2 align-items-center mt-3 mt-md-0">
+            <span class="badge bg-light text-secondary border px-3 py-2">
+                <i class="bi bi-clock me-1"></i> Sistem Saati: <span id="liveClock">@DateTime.Now.ToString("HH:mm:ss")</span>
+            </span>
+            <button type="button" class="btn btn-outline-primary btn-sm" onclick="window.location.reload();">
+                <i class="bi bi-arrow-clockwise me-1"></i> Yenile
+            </button>
+        </div>
+    </div>
+
+    <!-- Feedback Alerts -->
+    @if (TempData["SuccessMessage"] != null)
+    {
+        <div class="alert alert-success alert-dismissible fade show shadow-sm" role="alert">
+            <i class="bi bi-check-circle-fill me-2"></i>@TempData["SuccessMessage"]
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    }
+    @if (TempData["ErrorMessage"] != null)
+    {
+        <div class="alert alert-danger alert-dismissible fade show shadow-sm" role="alert">
+            <i class="bi bi-exclamation-triangle-fill me-2"></i>@TempData["ErrorMessage"]
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    }
+
+    <!-- Üst Metrik Kartları (Dashboard KPI) -->
+    <div class="row g-3 mb-4">
+        <!-- 1. Toplam Planlanan -->
+        <div class="col-12 col-sm-6 col-xl-3">
+            <div class="card border-0 shadow-sm rounded-3 h-100 border-start border-primary border-4">
+                <div class="card-body d-flex align-items-center">
+                    <div class="rounded-circle bg-primary bg-opacity-10 p-3 me-3 text-primary">
+                        <i class="bi bi-calendar-event fs-3"></i>
+                    </div>
+                    <div>
+                        <span class="text-muted small fw-medium text-uppercase">Planlanan Yayınlar</span>
+                        <h3 class="fw-bold mb-0 text-dark">@Model.TotalPlannedCount</h3>
+                        <small class="text-muted">Aktif takvimdeki yayınlar</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 2. Gecikmiş / Aksiyon Bekleyen -->
+        <div class="col-12 col-sm-6 col-xl-3">
+            <div class="card border-0 shadow-sm rounded-3 h-100 border-start border-danger border-4">
+                <div class="card-body d-flex align-items-center">
+                    <div class="rounded-circle bg-danger bg-opacity-10 p-3 me-3 text-danger">
+                        <i class="bi bi-exclamation-octagon-fill fs-3"></i>
+                    </div>
+                    <div>
+                        <span class="text-danger small fw-bold text-uppercase">Gecikmiş / Aksiyon Gerekli</span>
+                        <h3 class="fw-bold mb-0 text-danger">@Model.OverdueCount</h3>
+                        <small class="text-muted">Zamanı geçmiş başlatılmamış</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 3. Yaklaşan Yayınlar (<24s) -->
+        <div class="col-12 col-sm-6 col-xl-3">
+            <div class="card border-0 shadow-sm rounded-3 h-100 border-start border-warning border-4">
+                <div class="card-body d-flex align-items-center">
+                    <div class="rounded-circle bg-warning bg-opacity-10 p-3 me-3 text-warning">
+                        <i class="bi bi-hourglass-split fs-3"></i>
+                    </div>
+                    <div>
+                        <span class="text-warning small fw-bold text-uppercase text-dark">Yaklaşan Yayınlar (&lt;24s)</span>
+                        <h3 class="fw-bold mb-0 text-dark">@Model.Upcoming24HoursCount</h3>
+                        <small class="text-muted">Hatırlatma & teknik kontrol</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 4. Tamamlanan Yayınlar -->
+        <div class="col-12 col-sm-6 col-xl-3">
+            <div class="card border-0 shadow-sm rounded-3 h-100 border-start border-success border-4">
+                <div class="card-body d-flex align-items-center">
+                    <div class="rounded-circle bg-success bg-opacity-10 p-3 me-3 text-success">
+                        <i class="bi bi-check2-circle fs-3"></i>
+                    </div>
+                    <div>
+                        <span class="text-muted small fw-medium text-uppercase">Tamamlanan Yayınlar</span>
+                        <h3 class="fw-bold mb-0 text-success">@Model.TotalCompletedCount</h3>
+                        <small class="text-muted">Başarıyla yayını bitenler</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Eksik Kategori Uyarısı (Dashboard Gereksinimi 2) -->
+    @if (Model.MissingCategories.Any())
+    {
+        <div class="card border-0 shadow-sm mb-4 bg-light border-start border-warning border-4">
+            <div class="card-body py-3">
+                <div class="d-flex flex-wrap align-items-center justify-content-between gap-2">
+                    <div class="d-flex align-items-center">
+                        <i class="bi bi-exclamation-triangle-fill text-warning fs-4 me-3"></i>
+                        <div>
+                            <strong class="text-dark">Bu Hafta Yayın Planlanmamış Kategoriler (@Model.MissingCategories.Count / @Model.AllCategories.Count)</strong>
+                            <p class="mb-0 text-muted small">
+                                Aşağıdaki kategorilerde bu hafta için henüz hiçbir canlı yayın oturumu planlanmamıştır. Kategori uzmanlarıyla iletişime geçilmesi önerilir:
+                            </p>
+                        </div>
+                    </div>
+                    <div class="d-flex flex-wrap gap-2">
+                        @foreach (var category in Model.MissingCategories)
+                        {
+                            <span class="badge bg-warning bg-opacity-25 text-dark border border-warning border-opacity-50 px-2.5 py-1.5 fw-medium">
+                                <i class="bi bi-tag me-1"></i>@category
+                            </span>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+
+    <!-- Operasyon Tablosu & Kontrolleri -->
+    <div class="card border-0 shadow-sm rounded-3">
+        <div class="card-header bg-white py-3 border-bottom">
+            <div class="d-flex flex-wrap align-items-center justify-content-between gap-3">
+                <!-- Filtre Butonları -->
+                <div class="btn-group btn-group-sm" role="group" id="filterButtonGroup">
+                    <button type="button" class="btn btn-outline-secondary active" data-filter="all">
+                        Tümü (@Model.Sessions.Count)
+                    </button>
+                    <button type="button" class="btn btn-outline-danger" data-filter="overdue">
+                        Gecikmiş (@Model.OverdueCount)
+                    </button>
+                    <button type="button" class="btn btn-outline-warning text-dark" data-filter="upcoming">
+                        Yaklaşan &lt;24s (@Model.Upcoming24HoursCount)
+                    </button>
+                    <button type="button" class="btn btn-outline-success" data-filter="completed">
+                        Tamamlanan (@Model.TotalCompletedCount)
+                    </button>
+                    <button type="button" class="btn btn-outline-secondary" data-filter="cancelled">
+                        Gerçekleşmedi (@Model.TotalCancelledCount)
+                    </button>
+                </div>
+
+                <!-- Arama Kutusu -->
+                <div class="input-group input-group-sm" style="max-width: 320px;">
+                    <span class="input-group-text bg-white"><i class="bi bi-search text-muted"></i></span>
+                    <input type="text" id="searchInput" class="form-control" placeholder="Eğitmen, konu veya kategori ara..." />
+                </div>
+            </div>
+        </div>
+
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0" id="broadcastTable">
+                    <thead class="table-light text-secondary small text-uppercase fw-semibold">
+                        <tr>
+                            <th class="ps-3" style="width: 22%;">İçerik Üreticisi</th>
+                            <th style="width: 15%;">Kategori</th>
+                            <th style="width: 25%;">Konu</th>
+                            <th style="width: 16%;">Planlanan Tarih / Saat</th>
+                            <th style="width: 10%;">Yayın Durumu</th>
+                            <th class="text-end pe-3" style="width: 12%;">Aksiyonlar</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var session in Model.Sessions)
+                        {
+                            var rowType = session.IsOverdue ? "overdue" :
+                                         session.IsUpcomingWithin24Hours ? "upcoming" :
+                                         session.Status == BroadcastStatus.Completed ? "completed" :
+                                         session.Status == BroadcastStatus.Cancelled ? "cancelled" : "planned";
+
+                            var isPast = session.ScheduledAt < DateTime.Now;
+                            var diffTime = session.ScheduledAt - DateTime.Now;
+
+                            <tr class="broadcast-row @(session.IsOverdue ? "table-danger bg-opacity-25" : "")" 
+                                data-type="@rowType"
+                                data-id="@session.Id"
+                                data-creator="@session.CreatorName"
+                                data-topic="@session.Topic"
+                                data-scheduled="@session.ScheduledAt.ToString("yyyy-MM-ddTHH:mm")">
+                                
+                                <!-- İçerik Üreticisi -->
+                                <td class="ps-3">
+                                    <div class="d-flex align-items-center">
+                                        <div class="avatar-circle me-2 fw-bold text-white @(session.IsOverdue ? "bg-danger" : "bg-primary")">
+                                            @session.CreatorName.Substring(0, 1)
+                                        </div>
+                                        <div>
+                                            <div class="fw-semibold text-dark">@session.CreatorName</div>
+                                            <small class="text-muted font-monospace" style="font-size: 0.75rem;" title="Arka plan hatırlatıcı token">
+                                                Token: @session.ReminderJobToken.ToString().Substring(0, 8)...
+                                            </small>
+                                        </div>
+                                    </div>
+                                </td>
+
+                                <!-- Kategori -->
+                                <td>
+                                    <span class="badge bg-secondary bg-opacity-10 text-secondary border px-2 py-1">
+                                        @session.Category
+                                    </span>
+                                </td>
+
+                                <!-- Konu -->
+                                <td>
+                                    <span class="fw-medium text-dark">@session.Topic</span>
+                                </td>
+
+                                <!-- Planlanan Tarih/Saat -->
+                                <td>
+                                    <div class="fw-semibold text-dark">
+                                        <i class="bi bi-calendar3 me-1 text-muted"></i>@session.ScheduledAt.ToString("dd.MM.yyyy HH:mm")
+                                    </div>
+                                    <small class="text-muted">
+                                        @if (isPast)
+                                        {
+                                            var hoursAgo = (int)(DateTime.Now - session.ScheduledAt).TotalHours;
+                                            if (hoursAgo < 1)
+                                            {
+                                                <span>@((int)(DateTime.Now - session.ScheduledAt).TotalMinutes) dk önce</span>
+                                            }
+                                            else
+                                            {
+                                                <span>@hoursAgo saat önce</span>
+                                            }
+                                        }
+                                        else
+                                        {
+                                            var hoursLeft = (int)diffTime.TotalHours;
+                                            if (hoursLeft < 24)
+                                            {
+                                                <span class="text-warning fw-semibold">@hoursLeft saat kaldı</span>
+                                            }
+                                            else
+                                            {
+                                                <span>@(hoursLeft / 24) gün kaldı</span>
+                                            }
+                                        }
+                                    </small>
+                                </td>
+
+                                <!-- Yayın Durumu (Badge) -->
+                                <td>
+                                    @if (session.Status == BroadcastStatus.Completed)
+                                    {
+                                        <span class="badge bg-success px-2 py-1.5">
+                                            <i class="bi bi-check-circle me-1"></i>Tamamlandı
+                                        </span>
+                                    }
+                                    else if (session.Status == BroadcastStatus.Cancelled)
+                                    {
+                                        <span class="badge bg-secondary px-2 py-1.5">
+                                            <i class="bi bi-x-circle me-1"></i>Gerçekleşmedi
+                                        </span>
+                                    }
+                                    else if (session.IsOverdue)
+                                    {
+                                        <span class="badge bg-danger px-2 py-1.5 shadow-sm text-uppercase fw-bold pulse-badge">
+                                            <i class="bi bi-exclamation-triangle-fill me-1"></i>Gecikmiş / Aksiyon Gerekli
+                                        </span>
+                                    }
+                                    else if (session.IsUpcomingWithin24Hours)
+                                    {
+                                        <span class="badge bg-warning text-dark px-2 py-1.5 fw-semibold">
+                                            <i class="bi bi-clock-history me-1"></i>Yaklaşan (&lt;24s)
+                                        </span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge bg-info text-dark px-2 py-1.5">
+                                            <i class="bi bi-calendar-check me-1"></i>Planlandı
+                                        </span>
+                                    }
+                                </td>
+
+                                <!-- Aksiyonlar -->
+                                <td class="text-end pe-3">
+                                    <div class="d-inline-flex gap-1">
+                                        <!-- Mesaj Oluştur Butonu (Gereksinim 5) -->
+                                        <button type="button" 
+                                                class="btn btn-sm btn-outline-primary"
+                                                onclick="openMessageModal('@session.Id')" 
+                                                title="İletişim / Hatırlatma Mesajı Oluştur">
+                                            <i class="bi bi-chat-text-fill"></i>
+                                            <span class="d-none d-lg-inline ms-1">Mesaj</span>
+                                        </button>
+
+                                        <!-- Erteleme Butonu (Gereksinim 4) -->
+                                        <button type="button" 
+                                                class="btn btn-sm btn-outline-warning text-dark"
+                                                onclick="openRescheduleModal('@session.Id', '@session.CreatorName', '@session.Topic', '@session.ScheduledAt.ToString("yyyy-MM-ddTHH:mm")')"
+                                                title="Yayını Yeni Tarihe Ertele">
+                                            <i class="bi bi-calendar2-range"></i>
+                                            <span class="d-none d-lg-inline ms-1">Ertele</span>
+                                        </button>
+
+                                        <!-- Durum Güncelleme Dropdown (Gereksinim 3) -->
+                                        <div class="dropdown d-inline-block">
+                                            <button class="btn btn-sm btn-light border dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                                <i class="bi bi-gear-fill text-secondary"></i>
+                                            </button>
+                                            <ul class="dropdown-menu dropdown-menu-end shadow-sm">
+                                                <li><h6 class="dropdown-header">Durumu Güncelle</h6></li>
+                                                <li>
+                                                    <button class="dropdown-item text-success" type="button" onclick="updateStatus('@session.Id', 1)">
+                                                        <i class="bi bi-check-circle me-2"></i>Tamamlandı Yap
+                                                    </button>
+                                                </li>
+                                                <li>
+                                                    <button class="dropdown-item text-secondary" type="button" onclick="updateStatus('@session.Id', 2)">
+                                                        <i class="bi bi-x-circle me-2"></i>Gerçekleşmedi Yap
+                                                    </button>
+                                                </li>
+                                                @if (session.Status != BroadcastStatus.Planned)
+                                                {
+                                                    <li><hr class="dropdown-divider"></li>
+                                                    <li>
+                                                        <button class="dropdown-item text-primary" type="button" onclick="updateStatus('@session.Id', 0)">
+                                                            <i class="bi bi-arrow-repeat me-2"></i>Tekrar Planlandı Yap
+                                                        </button>
+                                                    </li>
+                                                }
+                                            </ul>
+                                        </div>
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        <div class="card-footer bg-white py-2 text-muted small d-flex justify-content-between align-items-center">
+            <span>Toplam <strong id="visibleRowCount">@Model.Sessions.Count</strong> yayın listeleniyor.</span>
+            <span><i class="bi bi-shield-check text-success me-1"></i>Arka Plan Hatırlatıcı Yönetimi: Token Invalidation Aktif</span>
+        </div>
+    </div>
+</div>
+
+<!-- ========================================================================= -->
+<!-- MODAL 1: İletişim / Hatırlatma Mesajı (Gereksinim 5)                      -->
+<!-- ========================================================================= -->
+<div class="modal fade" id="messageModal" tabindex="-1" aria-labelledby="messageModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title h6 mb-0" id="messageModalLabel">
+                    <i class="bi bi-chat-dots-fill me-2"></i>İletişim & Hatırlatma Mesajı Oluştur
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-4">
+                <div class="mb-3 p-3 bg-light rounded-3 border">
+                    <div class="row g-2 small">
+                        <div class="col-sm-6">
+                            <span class="text-muted">İçerik Üreticisi:</span>
+                            <strong id="modalCreatorName" class="d-block text-dark">-</strong>
+                        </div>
+                        <div class="col-sm-6">
+                            <span class="text-muted">Planlanan Zaman:</span>
+                            <span id="modalScheduledAt" class="d-block fw-semibold text-dark">-</span>
+                        </div>
+                        <div class="col-12 mt-2">
+                            <span class="text-muted">Yayın Konusu:</span>
+                            <span id="modalTopic" class="d-block text-dark fw-medium">-</span>
+                        </div>
+                        <div class="col-12 mt-1">
+                            <span class="text-muted">Tespit Edilen Durum:</span>
+                            <span id="modalStatusBadge" class="badge bg-secondary ms-1">-</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="mb-3">
+                    <label for="modalMessageText" class="form-label fw-semibold small text-uppercase text-secondary">
+                        Hazırlanan Dinamik Mesaj Metni
+                    </label>
+                    <textarea class="form-control font-monospace text-dark" id="modalMessageText" rows="8" style="font-size: 0.9rem; line-height: 1.5;"></textarea>
+                    <div class="form-text small">
+                        <i class="bi bi-info-circle me-1"></i>Bu şablon yayının gecikme veya yaklaşma durumuna göre otomatik olarak üretilmiştir. Göndermeden önce dilediğiniz düzenlemeyi yapabilirsiniz.
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer bg-light py-2">
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Kapat</button>
+                <button type="button" class="btn btn-primary btn-sm px-3" id="btnCopyMessage" onclick="copyModalMessage()">
+                    <i class="bi bi-clipboard-check me-1"></i> Panoya Kopyala
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ========================================================================= -->
+<!-- MODAL 2: Yayını Erteleme & Reminder Invalidation (Gereksinim 4)           -->
+<!-- ========================================================================= -->
+<div class="modal fade" id="rescheduleModal" tabindex="-1" aria-labelledby="rescheduleModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header bg-warning text-dark">
+                <h5 class="modal-title h6 mb-0" id="rescheduleModalLabel">
+                    <i class="bi bi-calendar-event-fill me-2"></i>Yayını Yeni Tarihe Ertele
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form id="rescheduleForm" onsubmit="submitReschedule(event)">
+                @Html.AntiForgeryToken()
+                <input type="hidden" id="rescheduleSessionId" name="id" />
+
+                <div class="modal-body p-4">
+                    <!-- Erteleme Detayları -->
+                    <div class="mb-3">
+                        <label class="form-label small text-muted mb-1">Eğitmen & Konu</label>
+                        <div class="fw-semibold text-dark" id="rescheduleCreator"></div>
+                        <div class="small text-muted text-truncate" id="rescheduleTopic"></div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="newScheduledAtInput" class="form-label fw-semibold">Yeni Yayın Tarihi ve Saati *</label>
+                        <input type="datetime-local" class="form-control" id="newScheduledAtInput" name="newScheduledAt" required />
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="rescheduleReasonInput" class="form-label fw-semibold">Erteleme Gerekçesi (Opsiyonel)</label>
+                        <input type="text" class="form-control" id="rescheduleReasonInput" name="reason" placeholder="Örn: Eğitmen mazereti, teknik hazırlık vb." />
+                    </div>
+
+                    <!-- Teknik Açıklama Kutusu (Case Study Yanıtı) -->
+                    <div class="alert alert-info border-0 rounded-3 small mb-0">
+                        <div class="d-flex">
+                            <i class="bi bi-cpu-fill text-info fs-5 me-2 mt-1"></i>
+                            <div>
+                                <strong class="d-block text-dark">Mimari Not (Reminder Invalidation):</strong>
+                                <span class="text-muted">
+                                    Erteleme yapıldığında mevcut <code>ReminderJobToken</code> geçersiz kılınır ve yeni bir GUID atanır. 
+                                    Arka plan servisi (Hangfire/Quartz) eski tetikleyiciyi çalıştırdığında token uyuşmazlığı nedeniyle işlemi otomatik olarak iptal eder (no-op).
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="modal-footer bg-light py-2">
+                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Vazgeç</button>
+                    <button type="submit" class="btn btn-warning btn-sm px-3 fw-semibold">
+                        <i class="bi bi-clock-history me-1"></i> Ertelemeyi Onayla
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- ========================================================================= -->
+<!-- TOAST NOTIFICATION                                                        -->
+<!-- ========================================================================= -->
+<div class="toast-container position-fixed bottom-0 end-0 p-3" style="z-index: 1100;">
+    <div id="actionToast" class="toast align-items-center text-white bg-dark border-0 shadow-lg" role="alert" aria-live="assertive" aria-atomic="true">
+        <div class="d-flex">
+            <div class="toast-body" id="toastMessage">
+                İşlem başarıyla gerçekleştirildi.
+            </div>
+            <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+        </div>
+    </div>
+</div>
+
+<!-- Gizli Anti-Forgery Formu (AJAX çağrıları için token kaynağı) -->
+<form id="antiForgeryForm" style="display:none;">
+    @Html.AntiForgeryToken()
+</form>
+
+@section Scripts {
+<style>
+    .avatar-circle {
+        width: 36px;
+        height: 36px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.95rem;
+    }
+    .pulse-badge {
+        animation: pulseAnimation 2s infinite;
+    }
+    @@keyframes pulseAnimation {
+        0% { opacity: 1; }
+        50% { opacity: 0.7; }
+        100% { opacity: 1; }
+    }
+</style>
+
+<script>
+    // Canlı Saat
+    setInterval(function() {
+        const now = new Date();
+        const clockEl = document.getElementById('liveClock');
+        if (clockEl) {
+            clockEl.textContent = now.toTimeString().split(' ')[0];
+        }
+    }, 1000);
+
+    // Anti-Forgery Token Alıcı
+    function getAntiForgeryToken() {
+        const tokenInput = document.querySelector('#antiForgeryForm input[name="__RequestVerificationToken"]');
+        return tokenInput ? tokenInput.value : '';
+    }
+
+    // Toast Gösterici
+    function showToast(message, isSuccess = true) {
+        const toastEl = document.getElementById('actionToast');
+        const msgEl = document.getElementById('toastMessage');
+        msgEl.innerHTML = (isSuccess ? '<i class="bi bi-check-circle-fill text-success me-2"></i>' : '<i class="bi bi-exclamation-octagon-fill text-danger me-2"></i>') + message;
+        
+        toastEl.className = 'toast align-items-center text-white border-0 shadow-lg ' + (isSuccess ? 'bg-dark' : 'bg-danger');
+        const toast = new bootstrap.Toast(toastEl, { delay: 4000 });
+        toast.show();
+    }
+
+    // =========================================================================
+    // 1. İLETİŞİM / HATIRLATMA MODAL (Gereksinim 5)
+    // =========================================================================
+    let messageModalInstance = null;
+
+    function openMessageModal(sessionId) {
+        const modalEl = document.getElementById('messageModal');
+        messageModalInstance = new bootstrap.Modal(modalEl);
+
+        document.getElementById('modalCreatorName').textContent = 'Yükleniyor...';
+        document.getElementById('modalScheduledAt').textContent = 'Yükleniyor...';
+        document.getElementById('modalTopic').textContent = 'Yükleniyor...';
+        document.getElementById('modalMessageText').value = 'Mesaj şablonu getiriliyor...';
+
+        fetch(`/Broadcast/GetMessage?id=${sessionId}`)
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    document.getElementById('modalCreatorName').textContent = data.creatorName;
+                    document.getElementById('modalScheduledAt').textContent = data.scheduledAt;
+                    document.getElementById('modalTopic').textContent = data.topic;
+                    document.getElementById('modalStatusBadge').textContent = data.status;
+                    document.getElementById('modalMessageText').value = data.message;
+                } else {
+                    document.getElementById('modalMessageText').value = data.message || 'Mesaj yüklenemedi.';
+                }
+            })
+            .catch(err => {
+                document.getElementById('modalMessageText').value = 'Hata oluştu: ' + err;
+            });
+
+        messageModalInstance.show();
+    }
+
+    function copyModalMessage() {
+        const textarea = document.getElementById('modalMessageText');
+        textarea.select();
+        textarea.setSelectionRange(0, 99999); // Mobil uyumluluk
+
+        navigator.clipboard.writeText(textarea.value).then(() => {
+            const btn = document.getElementById('btnCopyMessage');
+            const originalHtml = btn.innerHTML;
+            btn.className = 'btn btn-success btn-sm px-3';
+            btn.innerHTML = '<i class="bi bi-check-lg me-1"></i> Kopyalandı!';
+            
+            showToast('Mesaj panoya kopyalandı. WhatsApp veya E-Posta ile doğrudan iletebilirsiniz.');
+
+            setTimeout(() => {
+                btn.className = 'btn btn-primary btn-sm px-3';
+                btn.innerHTML = originalHtml;
+            }, 2500);
+        }).catch(err => {
+            alert('Kopyalama başarısız oldu: ' + err);
+        });
+    }
+
+    // =========================================================================
+    // 2. ERTELEME MODAL & REMINDER INVALIDATION (Gereksinim 4)
+    // =========================================================================
+    let rescheduleModalInstance = null;
+
+    function openRescheduleModal(id, creator, topic, currentScheduled) {
+        document.getElementById('rescheduleSessionId').value = id;
+        document.getElementById('rescheduleCreator').textContent = creator;
+        document.getElementById('rescheduleTopic').textContent = topic;
+        document.getElementById('rescheduleReasonInput').value = '';
+
+        // Varsayılan olarak mevcut tarihten 1 gün sonrasını ayarla
+        const dt = new Date(currentScheduled);
+        dt.setDate(dt.getDate() + 1);
+        const isoString = new Date(dt.getTime() - (dt.getTimezoneOffset() * 60000)).toISOString().slice(0, 16);
+        document.getElementById('newScheduledAtInput').value = isoString;
+
+        const modalEl = document.getElementById('rescheduleModal');
+        rescheduleModalInstance = new bootstrap.Modal(modalEl);
+        rescheduleModalInstance.show();
+    }
+
+    function submitReschedule(e) {
+        e.preventDefault();
+        const form = document.getElementById('rescheduleForm');
+        const formData = new FormData(form);
+
+        fetch('/Broadcast/Reschedule', {
+            method: 'POST',
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            body: formData
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.success) {
+                if (rescheduleModalInstance) {
+                    rescheduleModalInstance.hide();
+                }
+                showToast(`${data.message} (Yeni ReminderJobToken: ${data.newToken.substring(0, 8)}...)`);
+                // Sayfayı yenileyerek güncel metrik ve takvim durumunu yansıt
+                setTimeout(() => window.location.reload(), 1200);
+            } else {
+                showToast(data.message || 'Erteleme başarısız.', false);
+            }
+        })
+        .catch(err => {
+            showToast('Hata: ' + err, false);
+        });
+    }
+
+    // =========================================================================
+    // 3. HIZLI DURUM GÜNCELLEME (Gereksinim 3)
+    // =========================================================================
+    function updateStatus(id, newStatusCode) {
+        const formData = new FormData();
+        formData.append('id', id);
+        formData.append('status', newStatusCode);
+        formData.append('__RequestVerificationToken', getAntiForgeryToken());
+
+        fetch('/Broadcast/UpdateStatus', {
+            method: 'POST',
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            body: formData
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.success) {
+                showToast(data.message);
+                setTimeout(() => window.location.reload(), 800);
+            } else {
+                showToast(data.message || 'Durum güncellenemedi.', false);
+            }
+        })
+        .catch(err => {
+            showToast('Hata: ' + err, false);
+        });
+    }
+
+    // =========================================================================
+    // 4. TABLO FİLTRELEME & ARAMA (Vanilla JavaScript)
+    // =========================================================================
+    document.addEventListener('DOMContentLoaded', function() {
+        const searchInput = document.getElementById('searchInput');
+        const filterButtons = document.querySelectorAll('#filterButtonGroup button');
+        const rows = document.querySelectorAll('.broadcast-row');
+        let currentFilter = 'all';
+
+        function applyFilter() {
+            const query = searchInput.value.toLowerCase().trim();
+            let visibleCount = 0;
+
+            rows.forEach(row => {
+                const type = row.getAttribute('data-type');
+                const text = row.textContent.toLowerCase();
+
+                const matchesFilter = (currentFilter === 'all') || (type === currentFilter);
+                const matchesSearch = query === '' || text.includes(query);
+
+                if (matchesFilter && matchesSearch) {
+                    row.style.display = '';
+                    visibleCount++;
+                } else {
+                    row.style.display = 'none';
+                }
+            });
+
+            const countEl = document.getElementById('visibleRowCount');
+            if (countEl) countEl.textContent = visibleCount;
+        }
+
+        filterButtons.forEach(btn => {
+            btn.addEventListener('click', function() {
+                filterButtons.forEach(b => b.classList.remove('active'));
+                this.classList.add('active');
+                currentFilter = this.getAttribute('data-filter');
+                applyFilter();
+            });
+        });
+
+        if (searchInput) {
+            searchInput.addEventListener('input', applyFilter);
+        }
+    });
+</script>
+}
